@@ -2,3 +2,9 @@
 .vscode
 **/*.exe
 **/*.exe.stackdump
+.viminfo
+.bash*
+.cache
+.config
+*.out
+*.o
