@@ -260,3 +260,121 @@ int main(int argc, char const *argv[])
     return 0;
 }
 ```
+
+文件类型
+
+- - 普通文件
+- d 目录
+- c 字符设备 串口
+- b 块设备 驱动内存
+- l 符号链接
+- s socket
+- p 管道文件 试试 `mknod test p`
+
+## 计算文件权限
+
+首先我们要懂得权限，权限都是 8 进制，4 2 1 对应 rwx。及 100 为 4 ， 010 为 2， 001 为 1。
+
+而且有拥有者、拥有组、其他人，三个，通常我们会说数字版本的即 755。
+
+按照 8 进制，权限从 0 到 7 刚好对应 perm 数组里面的项。
+
+假如我们想提取一段二进制里面的某一段数据怎么办，做 & 运算，只有为 1 的才会保留。
+
+011 -> 6
+&
+111 -> 7
+||
+011 -> 6
+
+st_mode -> 100666 10 代表目录文件 666 表示权限
+mask -> 0700 0 表示 8 进制。
+
+做 & 运算，得到 600 ，然后 >> 2 位 得到 6。
+
+mask 做右移 >> 1 则 mask -> 070
+
+做 & 运算，得到 060，然后 >> 1 位，得到 6。
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <fcntl.h>
+
+#define N_BITS 3
+
+int main(int argc, char const *argv[])
+{
+    unsigned int i, mask = 0700;
+    struct stat file_stat;
+    static char *perm[] = {"---", "--x", "-w-", "-wx", "r--", "r-x", "rw-", "rwx"};
+    if (stat(argv[1], &file_stat) != -1)
+    {
+        printf("%o\n", file_stat.st_mode);
+        printf("%o\n", (file_stat.st_mode & mask));
+        for (i = 3; i; --i)
+        {
+            printf("%3s\n", perm[(file_stat.st_mode & mask) >> (i - 1) * N_BITS]);
+            mask >>= N_BITS;
+            printf("mask: %o\n", mask);
+        }
+    }
+    else
+    {
+        perror("stat");
+    }
+    return 0;
+}
+```
+
+## 获取用户信息
+
+passwd 中有用户的信息，可以通过 uid，可以通过 name 获取。
+
+```
+#include <stdlib.h>
+#include <pwd.h>
+#include <stdio.h>
+
+int main(int argc, char const *argv[])
+{
+    struct passwd *ptr;
+    // uid_t uid;
+    // uid = atoi(argv[1]);
+    // ptr = getpwuid(uid); // 通过 uid 获取
+    ptr = getpwnam("yugo");
+    printf("%d\n", ptr->pw_uid);
+    return 0;
+}
+```
+
+## 修改文件时间
+
+```
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <utime.h>
+#include <time.h>
+#include <sys/types.h>
+
+int main(int argc, char const *argv[])
+{
+    struct utimbuf buf;
+    char *ptr;
+    time_t tm;
+    time(&tm);
+    buf.actime = tm - 1;
+    buf.modtime = tm - 2;
+    ptr = ctime(&tm);
+    printf("now %s\n", ptr);
+    ptr = ctime(&buf.actime);
+    printf("actime %s\n", ptr); // 访问时间
+    ptr = ctime(&buf.modtime);
+    printf("modtime %s\n", ptr); // 修改内容时间
+    utime(argv[1], &buf);
+    return 0;
+}
+```
